@@ -37,8 +37,13 @@ args = parser.parse_args()
 class SectionSize():
     code = 0
     data = 0  # Including metadata like import tables
-    def total(self):
+    bss = 0
+    def rom(self):
         return self.code + self.data
+    def ram(self):
+        return self.data + self.bss
+    def total(self):
+        return self.code + self.data + self.bss
     def add_section(self, section, size):
         if section.startswith('.comment'):
             return
@@ -48,7 +53,9 @@ class SectionSize():
             return
         if section.startswith('.text'):
             self.code += size
-        elif section != '.bss':
+        elif section.startswith('.bss') or section.startswith('.common'):
+            self.bss += size
+        else:
             self.data += size
 
 size_by_source = {}
@@ -104,11 +111,18 @@ with open(args.map_file) as f:
 # Print out summary
 sources = list(size_by_source.keys())
 sources.sort(key = lambda x: size_by_source[x].total())
-sumtotal = sumcode = sumdata = 0
+sumrom = sumram = sumcode = sumdata = sumbss = 0
+
+col_format = "%-40s\t%-7s\t%-7s\t%-7s\t%-7s\t%-7s"
+print(col_format % ("object file", "ROM", "RAM", ".code", ".data", ".bss"))
 for source in sources:
     size = size_by_source[source]
     sumcode += size.code
     sumdata += size.data
-    sumtotal += size.total()
-    print("%-40s \t%7s  (code: %d data: %d)" % (os.path.normpath(source), size.total(), size.code, size.data))
-print("TOTAL %d  (code: %d data: %d)" % (sumtotal, sumcode, sumdata))
+    sumbss  += size.bss
+    sumrom += size.rom()
+    sumram += size.ram()
+    print(col_format % (os.path.basename(source), size.rom(), size.ram(), size.code, size.data, size.bss))
+
+print('---')
+print(col_format % ("(SUMMARY)", sumrom, sumram, sumcode, sumdata, sumbss))
